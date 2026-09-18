@@ -17,7 +17,15 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Cpu
+  Cpu,
+  Zap,
+  Check,
+  X,
+  Layers,
+  Flame,
+  Trophy,
+  HelpCircle,
+  Lightbulb
 } from 'lucide-react';
 
 // --- INITIAL DATA & CONSTANTS ---
@@ -156,6 +164,55 @@ const GLOSSARY_ITEMS = [
   }
 ];
 
+const BUG_CHALLENGES = [
+  {
+    id: 1,
+    title: 'Standup Blocker Clarification',
+    description: 'გასწორე შეცდომა ფრაზაში, რომელსაც დეველოპერი ამბობს Standup-ზე:',
+    brokenCode: "I am block because backend API is not respond since morning.",
+    options: [
+      "I am blocked because the backend API hasn't been responding since this morning.",
+      "I am blocking because backend API is no responding.",
+      "I blocked because backend API does not responded today."
+    ],
+    correctIndex: 0,
+    explanation: "'Blocked' გამოიყენება პასიურ ფორმაში (მე ვარ დაბლოკილი). ასევე 'hasn't been responding' სწორად გამოხატავს დროის მონაკვეთს დილიდან ახლანდლამდე."
+  },
+  {
+    id: 2,
+    title: 'Code Review Suggestion',
+    description: 'როგორ იტყვი უფრო პროფესიულად და ზრდილობიანად PR-ის განხილვისას?',
+    brokenCode: "Your code is bad, change this function now.",
+    options: [
+      "This code is not good, replace function.",
+      "Would you mind refactoring this function to improve performance?",
+      "You must fix this function as soon as possible."
+    ],
+    correctIndex: 1,
+    explanation: "Code Review-ს დროს მნიშვნელოვანია კონსტრუქციული და ზრდილობიანი ტონი ('Would you mind...', 'What do you think about...')."
+  },
+  {
+    id: 3,
+    title: 'Technical Discussion on Scaling',
+    description: 'რომელი ფორმაა გრამატიკულად და ტექნიკურად სწორი?',
+    brokenCode: "We need optimize database query for lower latency.",
+    options: [
+      "We need optimizing database query for lower latency.",
+      "We need to optimize our database queries to reduce latency.",
+      "We need optimize database for making lower latency."
+    ],
+    correctIndex: 1,
+    explanation: "ზმნა 'need'-ს სჭირდება ინფინიტივი ('to optimize'), ხოლო 'reduce latency' უფრო ბუნებრივი კოლოკაციაა, ვიდრე 'lower latency'."
+  }
+];
+
+const FLASHCARDS = [
+  { id: 1, term: 'Trade-off', definition: 'კომპრომისი / არჩევანი ორ ალტერნატივას შორის (მაგ. სიჩქარე vs მეხსიერება)', example: 'Choosing SQL over NoSQL was a trade-off between consistency and dynamic scaling.' },
+  { id: 2, term: 'Out of the box', definition: 'მზა ფუნქციონალი, რომელიც დამატებით კონფიგურაციას არ საჭიროებს', example: 'Next.js provides server-side rendering out of the box.' },
+  { id: 3, term: 'Boilerplate', definition: 'შაბლონური კოდი, რომელიც მეორდება სხვადასხვა ადგილას', example: 'We used Create React App to eliminate initial boilerplate setup.' },
+  { id: 4, term: 'Graceful Degradation', definition: 'სისტემის უნარი გააგრძელოს მუშაობა (შეზღუდულად) ხარვეზის დროსაც', example: 'The website uses graceful degradation when offline mode is activated.' }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('simulations');
   const [selectedScenarioId, setSelectedScenarioId] = useState('standup');
@@ -166,6 +223,17 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [expandedFeedbackId, setExpandedFeedbackId] = useState(null);
   const [speechSupported, setSpeechSupported] = useState(true);
+
+  // New Features States
+  const [bugIndex, setBugIndex] = useState(0);
+  const [selectedBugOption, setSelectedBugOption] = useState(null);
+  const [isBugSubmitted, setIsBugSubmitted] = useState(false);
+
+  const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  const [completedScenarios, setCompletedScenarios] = useState(1);
+  const [userStreak] = useState(3);
 
   const recognitionRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -184,7 +252,7 @@ export default function App() {
   // Speech Synthesis Helper
   const speakText = useCallback((text) => {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel(); // stop previous speech
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
     utterance.rate = 0.95;
@@ -207,9 +275,9 @@ export default function App() {
 
   useEffect(() => {
     startScenario(currentScenario);
-  }, [selectedScenarioId]);
+  }, [selectedScenarioId, startScenario, currentScenario]);
 
-  // Web Speech API Initialization (Speech Recognition)
+  // Web Speech API Initialization
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -281,7 +349,6 @@ export default function App() {
     setMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
 
-    // Simulate AI Response Delay
     setTimeout(() => {
       const aiResponseIndex = Math.min(
         messages.filter((m) => m.sender === 'ai').length - 1,
@@ -299,11 +366,24 @@ export default function App() {
 
       setMessages((prev) => [...prev, aiMsg]);
       setIsThinking(false);
+      setCompletedScenarios((prev) => prev + 1);
 
       if (autoTts) {
         speakText(aiResponseText);
       }
     }, 1200);
+  };
+
+  const handleBugSubmit = () => {
+    if (selectedBugOption !== null) {
+      setIsBugSubmitted(true);
+    }
+  };
+
+  const nextBugChallenge = () => {
+    setIsBugSubmitted(false);
+    setSelectedBugOption(null);
+    setBugIndex((prev) => (prev + 1) % BUG_CHALLENGES.length);
   };
 
   return (
@@ -328,11 +408,11 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation */}
+          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
             <button
               onClick={() => setActiveTab('simulations')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'simulations'
                   ? 'bg-slate-800 text-emerald-400 border border-slate-700'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -341,9 +421,34 @@ export default function App() {
               <MessageSquare className="w-4 h-4" />
               <span>სიმულაციები</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('bugfix')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                activeTab === 'bugfix'
+                  ? 'bg-slate-800 text-emerald-400 border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>Bug Fix Challenge</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('flashcards')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                activeTab === 'flashcards'
+                  ? 'bg-slate-800 text-emerald-400 border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-cyan-400" />
+              <span>Flashcards</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('glossary')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                 activeTab === 'glossary'
                   ? 'bg-slate-800 text-emerald-400 border border-slate-700'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -354,13 +459,20 @@ export default function App() {
             </button>
           </nav>
 
-          {/* AI Active Indicator */}
-          <div className="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/60">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-mono font-medium text-slate-300">AI Active</span>
+          {/* AI Active & User Stats */}
+          <div className="flex items-center space-x-3">
+            <div className="hidden sm:flex items-center space-x-2 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full text-amber-400 text-xs font-mono">
+              <Flame className="w-3.5 h-3.5 fill-amber-400" />
+              <span>{userStreak} Day Streak</span>
+            </div>
+
+            <div className="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/60">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="text-xs font-mono font-medium text-slate-300">AI Active</span>
+            </div>
           </div>
         </div>
       </header>
@@ -368,7 +480,7 @@ export default function App() {
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* 2. HERO SECTION */}
+        {/* HERO SECTION */}
         <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-800/80 via-slate-800/40 to-slate-900 border border-slate-800 p-6 md:p-8">
           <div className="max-w-3xl space-y-4">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono">
@@ -385,50 +497,78 @@ export default function App() {
           </div>
 
           {/* Quick Stats Bar */}
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-800/80 max-w-xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
             <div className="flex items-center space-x-3">
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <Code2 className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-sm font-bold font-mono text-slate-200">საჭირო IT </div>
+                <div className="text-sm font-bold font-mono text-slate-200">10+ IT</div>
                 <div className="text-xs text-slate-400">ტერმინები</div>
               </div>
             </div>
+
             <div className="flex items-center space-x-3">
               <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                 <Play className="w-4 h-4" />
               </div>
               <div>
                 <div className="text-sm font-bold font-mono text-slate-200">3 რეალური</div>
-                <div className="text-xs text-slate-400">სცენარი</div>
+                <div className="text-xs text-slate-400">სიმულაცია</div>
               </div>
             </div>
+
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                <Mic className="w-4 h-4" />
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <Zap className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-sm font-bold font-mono text-slate-200">ხმოვანი</div>
-                <div className="text-xs text-slate-400">AI პრაქტიკა</div>
+                <div className="text-sm font-bold font-mono text-slate-200">Bug Fix</div>
+                <div className="text-xs text-slate-400">გამოწვევები</div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                <Trophy className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-sm font-bold font-mono text-slate-200">{completedScenarios} პასუხი</div>
+                <div className="text-xs text-slate-400">შესრულებულია</div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* TAB CONTROLE - MOBILE ONLY SWITCH */}
-        <div className="flex md:hidden space-x-2 border-b border-slate-800 pb-2">
+        {/* MOBILE NAVIGATION TABS */}
+        <div className="grid grid-cols-2 gap-2 md:hidden border-b border-slate-800 pb-2">
           <button
             onClick={() => setActiveTab('simulations')}
-            className={`flex-1 py-2 text-center text-sm font-medium rounded-lg ${
+            className={`py-2 text-center text-xs font-medium rounded-lg ${
               activeTab === 'simulations' ? 'bg-slate-800 text-emerald-400 border border-slate-700' : 'text-slate-400'
             }`}
           >
             სიმულაციები
           </button>
           <button
+            onClick={() => setActiveTab('bugfix')}
+            className={`py-2 text-center text-xs font-medium rounded-lg ${
+              activeTab === 'bugfix' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400'
+            }`}
+          >
+            Bug Fix
+          </button>
+          <button
+            onClick={() => setActiveTab('flashcards')}
+            className={`py-2 text-center text-xs font-medium rounded-lg ${
+              activeTab === 'flashcards' ? 'bg-slate-800 text-cyan-400 border border-slate-700' : 'text-slate-400'
+            }`}
+          >
+            Flashcards
+          </button>
+          <button
             onClick={() => setActiveTab('glossary')}
-            className={`flex-1 py-2 text-center text-sm font-medium rounded-lg ${
+            className={`py-2 text-center text-xs font-medium rounded-lg ${
               activeTab === 'glossary' ? 'bg-slate-800 text-emerald-400 border border-slate-700' : 'text-slate-400'
             }`}
           >
@@ -436,9 +576,9 @@ export default function App() {
           </button>
         </div>
 
+        {/* --- SECTION 1: SIMULATIONS --- */}
         {activeTab === 'simulations' && (
           <div className="space-y-8">
-            {/* 3. SCENARIO SELECTOR */}
             <section className="space-y-3">
               <h2 className="text-lg font-bold text-slate-200 flex items-center space-x-2">
                 <span>აირჩიეთ სიმულაციის რეჟიმი</span>
@@ -472,10 +612,8 @@ export default function App() {
               </div>
             </section>
 
-            {/* 4. VOICE CHAT PLAYGROUND */}
+            {/* VOICE CHAT PLAYGROUND */}
             <section className="bg-slate-800/60 border border-slate-800 rounded-2xl overflow-hidden flex flex-col h-[600px] shadow-2xl">
-              
-              {/* Chat Header Controls */}
               <div className="bg-slate-800/90 border-b border-slate-700/60 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -488,7 +626,6 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center space-x-3">
-                  {/* Restart Chat */}
                   <button
                     onClick={() => startScenario(currentScenario)}
                     className="p-2 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-700/50 transition-colors"
@@ -497,7 +634,6 @@ export default function App() {
                     <RotateCcw className="w-4 h-4" />
                   </button>
 
-                  {/* Auto TTS Toggle */}
                   <button
                     onClick={() => setAutoTts(!autoTts)}
                     className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-mono transition-colors border ${
@@ -553,7 +689,7 @@ export default function App() {
                             <p className="whitespace-pre-wrap">{msg.text}</p>
                           </div>
 
-                          {/* Georgian Feedback Panel for User Messages */}
+                          {/* Georgian Feedback Panel */}
                           {isUser && msg.feedback && (
                             <div className="mt-2 w-full">
                               <button
@@ -597,7 +733,6 @@ export default function App() {
               {/* Chat Input Bar */}
               <div className="p-4 bg-slate-800/90 border-t border-slate-700/60">
                 <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-                  {/* Microphone Button */}
                   <button
                     type="button"
                     onClick={toggleListening}
@@ -611,7 +746,6 @@ export default function App() {
                     {isListening ? <MicOff className="w-5 h-5 animate-bounce" /> : <Mic className="w-5 h-5" />}
                   </button>
 
-                  {/* Text Input Field */}
                   <input
                     type="text"
                     value={inputText}
@@ -624,7 +758,6 @@ export default function App() {
                     className="flex-1 bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors font-sans"
                   />
 
-                  {/* Send Button */}
                   <button
                     type="submit"
                     disabled={!inputText.trim() || isThinking}
@@ -645,7 +778,172 @@ export default function App() {
           </div>
         )}
 
-        {/* 5. DEV GLOSSARY SECTION */}
+        {/* --- SECTION 2: BUG FIX CHALLENGE --- */}
+        {activeTab === 'bugfix' && (
+          <section className="max-w-3xl mx-auto space-y-6">
+            <div className="bg-slate-800/80 border border-amber-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div className="flex items-center space-x-2">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  <h2 className="font-bold text-lg text-slate-100">Bug Fix Challenge #{BUG_CHALLENGES[bugIndex].id}</h2>
+                </div>
+                <span className="text-xs font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full">
+                  Grammar & Style Bug
+                </span>
+              </div>
+
+              <div>
+                <h3 className="text-base font-semibold text-slate-200">{BUG_CHALLENGES[bugIndex].title}</h3>
+                <p className="text-xs text-slate-400 mt-1">{BUG_CHALLENGES[bugIndex].description}</p>
+              </div>
+
+              {/* Broken Code / Phrase Box */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-rose-500/30 font-mono text-sm text-rose-300 relative">
+                <div className="text-[10px] uppercase tracking-wider text-rose-400/80 mb-1">❌ Broken Phrase / Code:</div>
+                "{BUG_CHALLENGES[bugIndex].brokenCode}"
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                <label className="text-xs font-mono text-slate-400 block">აირჩიეთ სწორი ვარიანტი:</label>
+                {BUG_CHALLENGES[bugIndex].options.map((opt, idx) => {
+                  const isSelected = selectedBugOption === idx;
+                  let optionStyle = "bg-slate-900 border-slate-700 text-slate-200 hover:border-slate-500";
+
+                  if (isBugSubmitted) {
+                    if (idx === BUG_CHALLENGES[bugIndex].correctIndex) {
+                      optionStyle = "bg-emerald-950/80 border-emerald-500 text-emerald-300";
+                    } else if (isSelected) {
+                      optionStyle = "bg-rose-950/80 border-rose-500 text-rose-300";
+                    }
+                  } else if (isSelected) {
+                    optionStyle = "bg-amber-500/10 border-amber-500 text-amber-300";
+                  }
+
+                  return (
+                    <button
+                      key={idx}
+                      disabled={isBugSubmitted}
+                      onClick={() => setSelectedBugOption(idx)}
+                      className={`w-full text-left p-3.5 rounded-xl border text-sm font-mono transition-all flex items-center justify-between ${optionStyle}`}
+                    >
+                      <span>{opt}</span>
+                      {isBugSubmitted && idx === BUG_CHALLENGES[bugIndex].correctIndex && (
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0 ml-2" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Submit & Explanation */}
+              {!isBugSubmitted ? (
+                <button
+                  disabled={selectedBugOption === null}
+                  onClick={handleBugSubmit}
+                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-amber-500/20"
+                >
+                  შეამოწმე პასუხი
+                </button>
+              ) : (
+                <div className="space-y-4 pt-2">
+                  <div className="p-4 rounded-xl bg-slate-900 border border-slate-700 space-y-2 text-xs">
+                    <div className="flex items-center space-x-2 text-emerald-400 font-bold">
+                      <Lightbulb className="w-4 h-4" />
+                      <span>განმარტება:</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">{BUG_CHALLENGES[bugIndex].explanation}</p>
+                  </div>
+
+                  <button
+                    onClick={nextBugChallenge}
+                    className="w-full py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold text-sm transition-all"
+                  >
+                    შემდეგი გამოწვევა ➔
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* --- SECTION 3: INTERACTIVE FLASHCARDS --- */}
+        {activeTab === 'flashcards' && (
+          <section className="max-w-xl mx-auto space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-bold text-slate-100">IT ინგლისურის ფლეშბარათები</h2>
+              <p className="text-xs text-slate-400">დააჭირე ბარათს განმარტებისა და მაგალითის სანახავად.</p>
+            </div>
+
+            <div
+              onClick={() => setIsFlipped(!isFlipped)}
+              className="cursor-pointer min-h-[260px] bg-slate-800/80 border border-cyan-500/30 hover:border-cyan-500 rounded-2xl p-8 flex flex-col justify-between items-center text-center transition-all duration-300 shadow-2xl relative"
+            >
+              <div className="w-full flex justify-between items-center text-xs font-mono text-slate-500">
+                <span>Card {flashcardIndex + 1} / {FLASHCARDS.length}</span>
+                <span className="text-cyan-400 flex items-center space-x-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>{isFlipped ? 'Back' : 'Front'}</span>
+                </span>
+              </div>
+
+              {!isFlipped ? (
+                <div className="space-y-3 my-auto">
+                  <h3 className="text-2xl font-extrabold text-cyan-400 font-mono tracking-wide">
+                    {FLASHCARDS[flashcardIndex].term}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-mono">(დააჭირე გადასაბრუნებლად)</p>
+                </div>
+              ) : (
+                <div className="space-y-4 my-auto animate-fadeIn">
+                  <p className="text-base font-medium text-slate-100 leading-relaxed">
+                    {FLASHCARDS[flashcardIndex].definition}
+                  </p>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300">
+                    "{FLASHCARDS[flashcardIndex].example}"
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    speakText(FLASHCARDS[flashcardIndex].term);
+                  }}
+                  className="p-2 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 transition-colors"
+                  title="გამოთქმის მოსმენა"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Flashcard Controls */}
+            <div className="flex items-center justify-between space-x-4">
+              <button
+                onClick={() => {
+                  setIsFlipped(false);
+                  setFlashcardIndex((prev) => (prev - 1 + FLASHCARDS.length) % FLASHCARDS.length);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-slate-100 font-medium text-xs transition-colors"
+              >
+                ◀ წინა
+              </button>
+              <button
+                onClick={() => {
+                  setIsFlipped(false);
+                  setFlashcardIndex((prev) => (prev + 1) % FLASHCARDS.length);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-cyan-500/20"
+              >
+                შემდეგი ▶
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* --- SECTION 4: DEV GLOSSARY --- */}
         {activeTab === 'glossary' && (
           <section className="space-y-4">
             <div>
@@ -690,7 +988,7 @@ export default function App() {
       {/* FOOTER */}
       <footer className="border-t border-slate-800 bg-slate-900 py-6 text-center text-xs text-slate-500 font-mono">
         <div className="max-w-7xl mx-auto px-4">
-          <p>გაფრთხილება!  საიტი სატესტო რეჟიმშია და მოსალოდნელია ხარვეზები.</p>
+          <p>გაფრთხილება! საიტი სატესტო რეჟიმშია და მოსალოდნელია ხარვეზები.</p>
         </div>
       </footer>
     </div>
