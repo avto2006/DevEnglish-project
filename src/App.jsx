@@ -937,7 +937,7 @@ export default function App() {
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition-colors shadow-lg shadow-cyan-500/20"
               >
-                შემდეგი ▶
+                შემდეგი 
               </button>
             </div>
           </section>
