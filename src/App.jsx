@@ -859,7 +859,7 @@ export default function App() {
                     onClick={nextBugChallenge}
                     className="w-full py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold text-sm transition-all"
                   >
-                    შემდეგი გამოწვევა ➔
+                    შემდეგი გამოწვევა 
                   </button>
                 </div>
               )}
@@ -928,7 +928,7 @@ export default function App() {
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-slate-100 font-medium text-xs transition-colors"
               >
-                ◀ წინა
+                 წინა
               </button>
               <button
                 onClick={() => {
